@@ -1,0 +1,16 @@
+Additional requirements:
+
+1. Add a table with the following information:
+A column for each (partial) year included in the simulation
+Three rows for the total energy generated in the year for each of the three sources
+A row for the total energy charged to the battery 
+A row for the total energy discharged from the battery
+A row for the energy lost in the battery (so charged minus discharged)
+The same three row mutatis mutandis for the H2 storage
+
+
+2. Power Balance graph:
+1. Option to show a non-stacked graph for the Power Balance with individual selection for each parameter 
+2. Option to link the time window of the Power Balance and the SOC graphs
+3. Option to select the time window with date time input fields
+4. Option to download graphs as PNG

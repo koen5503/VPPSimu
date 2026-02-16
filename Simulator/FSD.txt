@@ -1,0 +1,89 @@
+Context:
+I have a verify Excel file energy_data_ned.xlsx with sheets for different years (e.g., "2023", "2024"). Each sheet has columns: Timestamp, Solar_CF, Wind_Onshore_CF, Wind_Offshore_CF (all normalized 0-1 values).
+
+Task:
+Create a separate Python script (simulation_dashboard.py) to run a Baseload Power Simulation. It must be launchable via streamlit run simulation_dashboard.py.
+
+1. UI Look & Feel:
+
+Maintain the exact visual style of the previous "Data Retrieval" dashboard.
+
+Use a Sidebar for all configuration parameters. Group them using st.expander for cleanliness (e.g., "Generation Mix", "Storage Config", "Simulation Settings").
+
+Use the Main Area for KPIs and Graphs.
+
+2. Data Ingestion & Time Selection:
+
+Load all available sheets from energy_data_ned.xlsx and combine them into a single continuous DataFrame sorted by time.
+
+Date Selection: Instead of selecting a "Year", provide two date pickers (st.date_input) for Start Date and End Date. Allow the user to simulate any arbitrary period (e.g., "Nov 1, 2023 to Feb 1, 2024").
+
+3. Simulation Logic (Iterative Loop):
+
+Baseload Target: Input in GW (Default: 1.0).
+
+Generation Config: Inputs for Installed Capacity (GW) for Solar, Wind On, Wind Off.
+
+Storage Config (Battery):
+
+Capacity (GWh) & Power Rating (GW).
+
+Efficiency: 95% charge, 95% discharge (Round-trip ~90%).
+
+Initial SoC: Slider 0-100% (Default 50%).
+
+Storage Config (Hydrogen):
+
+Capacity (GWh).
+
+Electrolyzer Power (GW) & Fuel Cell Power (GW).
+
+Efficiency: 70% Electrolyzer, 50% Fuel Cell.
+
+Initial SoC: Slider 0-100% (Default 50%).
+
+The Algorithm (Hour-by-Hour):
+
+Filter data to the selected Date Range.
+
+Calculate Renewable_Generation = Sum(Installed_GW * CF).
+
+Calculate Net_Load = Renewable_Generation - Baseload_Target.
+
+Logic:
+
+Surplus (>0): Charge Battery first (limited by Power & Capacity). If Battery full/max-power reached -> Charge H2 (limited by Electrolyzer Power & Capacity). Remainder -> Curtailment.
+
+Deficit (<0): Discharge Battery first. If Battery empty/max-power reached -> Discharge H2 (limited by Fuel Cell Power). Remainder -> Loss of Load (Blackout).
+
+4. Outputs & Visuals (Plotly):
+
+KPI Metrics (Top Row):
+
+Reliability % (1 - BlackoutHours/TotalHours).
+
+Total Curtailment (TWh).
+
+Battery Cycles & H2 Cycles.
+
+Graph 1: Power Balance (Stacked Area):
+
+Positive Stack: Solar + Wind + Batt_Discharge + H2_Discharge.
+
+Negative Stack: Batt_Charge + H2_Charge + Curtailment.
+
+Line Overlay: Baseload Target.
+
+Graph 2: Storage Levels (Dual Axis):
+
+Left Axis: Battery SoC (%).
+
+Right Axis: Hydrogen SoC (%).
+
+Technical Constraints:
+
+Use @st.cache_data to cache the data loading.
+
+The simulation loop should be efficient.
+
+Ensure the Start Date/End Date selector handles edge cases (e.g., selecting a date outside the Excel file range).
