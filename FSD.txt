@@ -1,0 +1,100 @@
+Context:
+I am building a simulation for the Dutch power grid using historical data from the Nationaal Energie Dashboard (ned.nl). I have already manually verified data for 2025, so I know the expected profile characteristics.
+
+Task:
+Write a complete, single-file Python script (using streamlit, pandas, requests, openpyxl, plotly) that performs Robust Data Retrieval and Interactive Visualization.
+
+1. Data Retrieval (ned.nl API):
+
+Inputs:
+
+API Key: Streamlit text_input (type="password").
+
+Year Range: Two text inputs or a slider for Start/End Year.
+
+Dynamic Configuration:
+
+Call https://api.ned.nl/v1/types first.
+
+Dynamically map these names to IDs (do not hardcode, as IDs change):
+
+"Zonne-energie" → Solar
+
+"Wind op land" → Wind Onshore
+
+"Wind op zee" → Wind Offshore
+
+Fetch Logic (Endpoint: /v1/utilizations):
+
+Parameters: point=0 (Netherlands), granularity=4 (Hour), classification=2 (Actual).
+
+Metric: Retrieve the percentage column. Important: Check if the API returns 0-1 or 0-100. Logic: If max(value) > 1.5, divide entire series by 100 to normalize to 0-1.
+
+Pagination: The NED API uses HAL pagination. You must recursively follow the ['links']['next'] URL until no next link exists to get the full year.
+
+Storage Strategy:
+
+File: energy_data_ned.xlsx
+
+Check if file exists. If yes, load it using pd.ExcelFile.
+
+Check if the specific Year already exists as a sheet. If yes, SKIP downloading that year and notify the user (prevents API waste).
+
+2. Autonomous Self-Verification (Crucial):
+
+Immediately after downloading or loading a year's data, the script must run a verify_data(df) function.
+
+Test 1: Completeness: Check if the number of rows is between 8760 and 8784 (handling leap years). If < 8700, flag as "Incomplete Data".
+
+Test 2: Full Load Hours (FLH): Calculate Sum(Capacity_Factor) for each column.
+
+Solar Warning: If FLH < 800 or > 1200 (Expected ~1000).
+
+Wind Onshore Warning: If FLH < 1800 or > 3000.
+
+Wind Offshore Warning: If FLH < 3000 or > 5000.
+
+Test 3: Physics Check: Ensure no value is < 0 or > 1.05 (allowing small buffer for measurement error, else clamp to 1.0).
+
+Output: Display a color-coded "Data Quality Report" dataframe in Streamlit (Green=Pass, Red=Fail) before showing graphs.
+
+3. Interactive Dashboard Requirements:
+
+Global Controls:
+
+Date Slider: A double-ended slider covering the full available range (default to Jan 1 - Jan 14 of the first loaded year).
+
+View Mode: Radio button: "Individual Profiles" vs "Stacked Simulation".
+
+Graph 1: "Individual Profiles" Mode:
+
+Checkboxes: "Solar", "Wind Onshore", "Wind Offshore".
+
+Plot: Line chart of Capacity Factors (0-1).
+
+Graph 2: "Stacked Simulation" Mode:
+
+Simulation Inputs: Three number inputs for Installed Capacity (GW) for Solar, Wind On, Wind Off (Default: 10, 10, 10).
+
+Calculation: P 
+total
+​	
+ (t)=(C 
+solar
+​	
+ ×CF 
+solar
+​	
+ (t))+…
+
+Plot: Stacked Area Chart of the resulting MW output.
+
+Technical Constraints:
+
+Use pandas for all data handling.
+
+Use plotly.graph_objects for fine-grained control over stacking and legends.
+
+Rate Limiting: Add time.sleep(1) between pagination calls to respect NED server load.
+
+Error Handling: If the API Key is wrong (401/403), show a clear "Please check your credentials" message, not a python stack trace.
