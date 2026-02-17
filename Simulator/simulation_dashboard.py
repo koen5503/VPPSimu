@@ -17,7 +17,11 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 # ── Constants ──────────────────────────────────────────────────────────
-EXCEL_FILE = "energy_data_ned.xlsx"
+# Use absolute path relative to this script to ensure file is found regardless of CWD
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+EXCEL_FILE = os.path.join(SCRIPT_DIR, "energy_data_ned.xlsx")
+SETTINGS_FILE = os.path.join(SCRIPT_DIR, "LastSettings.xlsx")
+COSTS_FILE = os.path.join(SCRIPT_DIR, "costs.xlsx")
 
 # ── Page Config ────────────────────────────────────────────────────────
 st.set_page_config(
@@ -65,7 +69,7 @@ def load_data(file_path: str) -> pd.DataFrame:
 
 
 # ── Settings Persistence ──────────────────────────────────────────────
-SETTINGS_FILE = "LastSettings.xlsx"
+# SETTINGS_FILE defined above
 
 def load_settings():
     """Load simulation settings from LastSettings.xlsx if it exists."""
@@ -89,9 +93,9 @@ def save_settings(settings_dict):
 @st.cache_data
 def load_costs():
     """Load cost parameters from costs.xlsx."""
-    if os.path.exists("costs.xlsx"):
+    if os.path.exists(COSTS_FILE):
         try:
-            df = pd.read_excel("costs.xlsx", index_col=0, engine="openpyxl")
+            df = pd.read_excel(COSTS_FILE, index_col=0, engine="openpyxl")
             # Clean up index (remove trailing whitespace)
             df.index = df.index.str.strip()
             return df
