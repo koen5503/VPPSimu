@@ -21,8 +21,15 @@ This project is a Python-based Streamlit dashboard designed to simulate a renewa
   * *Surplus*: Charge Battery $\to$ Charge H2 $\to$ Curtailment.
   * *Deficit*: Discharge Battery $\to$ Discharge H2 $\to$ Loss of Load.
 
-### 3. Interactive Visualizations
+### 3. Financial & Spatial Analysis
 
+* **Cost Estimation**: Calculates total investment (B€) based on configurable costs per technology (loaded from `costs.xlsx`).
+* **Land Use Estimation**: Calculates total land/sea footprint (km²) based on technology specific area requirements.
+* **Detailed Breakdown**: View a granular table of Investment and Land Use per technology (Solar, Wind, Battery, H2, etc.).
+
+### 4. Interactive Visualizations
+
+* **Settings Persistence**: Automatically saves to `LastSettings.xlsx` and restores simulation parameters on startup.
 * **Dashboard KPIs**: Real-time metrics for Reliability (%), Total Curtailment (TWh), and Storage Cycles.
 * **Annual Energy Summary**: A dedicated table showing total TWh generated, charged, discharged, and lost per year.
 * **Power Balance Graph**:

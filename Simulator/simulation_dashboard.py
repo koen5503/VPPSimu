@@ -63,6 +63,42 @@ def load_data(file_path: str) -> pd.DataFrame:
         st.error(f"Error loading data: {e}")
         return pd.DataFrame()
 
+
+# ── Settings Persistence ──────────────────────────────────────────────
+SETTINGS_FILE = "LastSettings.xlsx"
+
+def load_settings():
+    """Load simulation settings from LastSettings.xlsx if it exists."""
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            df = pd.read_excel(SETTINGS_FILE, index_col=0, engine="openpyxl")
+            return df["Value"].to_dict()
+        except:
+            pass
+    return {}
+
+def save_settings(settings_dict):
+    """Save current simulation settings to LastSettings.xlsx."""
+    try:
+        df = pd.DataFrame.from_dict(settings_dict, orient='index', columns=['Value'])
+        df.to_excel(SETTINGS_FILE, engine="openpyxl")
+    except Exception as e:
+        print(f"Failed to save settings: {e}")
+
+# ── Cost Data Loading ────────────────────────────────────────────────
+@st.cache_data
+def load_costs():
+    """Load cost parameters from costs.xlsx."""
+    if os.path.exists("costs.xlsx"):
+        try:
+            df = pd.read_excel("costs.xlsx", index_col=0, engine="openpyxl")
+            # Clean up index (remove trailing whitespace)
+            df.index = df.index.str.strip()
+            return df
+        except:
+            pass
+    return pd.DataFrame()
+
 def main():
     st.title("🇳🇱 NED Baseload Power Simulation")
     st.caption("Simulate renewable generation + storage to meet a flat baseload target.")
@@ -70,6 +106,9 @@ def main():
     # Load Data
     with st.spinner("Loading capacity factor data..."):
         df_all = load_data(EXCEL_FILE)
+    
+    # Load Costs
+    df_costs = load_costs()
 
     if df_all.empty:
         st.stop()
@@ -78,36 +117,48 @@ def main():
     min_date = df_all.index.min().date()
     max_date = df_all.index.max().date()
     
+    # Load previous settings
+    defaults = load_settings()
+    
     # ── Sidebar Configuration ──────────────────────────────────────────
     with st.sidebar:
         st.header("⚙️ Simulation Settings")
         
         # 1. Generation Parameters
         with st.expander("Generation Mix (GW)", expanded=True):
-            cap_solar = st.number_input("Solar Capacity", min_value=0.0, value=10.0, step=0.5, format="%.1f")
-            cap_onshore = st.number_input("Wind Onshore Capacity", min_value=0.0, value=5.0, step=0.5, format="%.1f")
-            cap_offshore = st.number_input("Wind Offshore Capacity", min_value=0.0, value=20.0, step=0.5, format="%.1f")
+            cap_solar = st.number_input("Solar Capacity", min_value=0.0, value=float(defaults.get("cap_solar", 10.0)), step=0.5, format="%.1f")
+            cap_onshore = st.number_input("Wind Onshore Capacity", min_value=0.0, value=float(defaults.get("cap_onshore", 5.0)), step=0.5, format="%.1f")
+            cap_offshore = st.number_input("Wind Offshore Capacity", min_value=0.0, value=float(defaults.get("cap_offshore", 20.0)), step=0.5, format="%.1f")
             
         # 2. Baseload Target
         with st.expander("Demand Settings", expanded=True):
-            baseload_target = st.number_input("Baseload Target (GW)", min_value=0.1, value=5.0, step=0.1, format="%.1f")
+            baseload_target = st.number_input("Baseload Target (GW)", min_value=0.1, value=float(defaults.get("baseload_target", 5.0)), step=0.1, format="%.1f")
             
         # 3. Storage: Battery
         with st.expander("Battery Storage (Li-ion)", expanded=False):
-            batt_cap = st.number_input("Battery Capacity (GWh)", min_value=0.0, value=10.0, step=1.0)
-            batt_power = st.number_input("Battery Power (GW)", min_value=0.0, value=5.0, step=0.5)
+            batt_cap = st.number_input("Battery Capacity (GWh)", min_value=0.0, value=float(defaults.get("batt_cap", 10.0)), step=1.0)
+            batt_power = st.number_input("Battery Power (GW)", min_value=0.0, value=float(defaults.get("batt_power", 5.0)), step=0.5)
             batt_eff = 0.95 # Charge/Discharge efficiency
-            batt_init_soc = st.slider("Initial SoC (%)", 0, 100, 50, key="batt_soc") / 100.0
+            batt_init_soc = st.slider("Initial SoC (%)", 0, 100, int(defaults.get("batt_init_soc", 50)), key="batt_soc") / 100.0
 
         # 4. Storage: Hydrogen
         with st.expander("Hydrogen Storage (H2)", expanded=False):
-            h2_cap = st.number_input("H2 Capacity (GWh, LHV)", min_value=0.0, value=500.0, step=50.0)
-            h2_ely_power = st.number_input("Electrolyzer Power (GW)", min_value=0.0, value=10.0, step=0.5)
-            h2_fc_power = st.number_input("Fuel Cell Power (GW)", min_value=0.0, value=5.0, step=0.5)
+            h2_cap = st.number_input("H2 Capacity (GWh, LHV)", min_value=0.0, value=float(defaults.get("h2_cap", 500.0)), step=50.0)
+            h2_ely_power = st.number_input("Electrolyzer Power (GW)", min_value=0.0, value=float(defaults.get("h2_ely_power", 10.0)), step=0.5)
+            h2_fc_power = st.number_input("Fuel Cell Power (GW)", min_value=0.0, value=float(defaults.get("h2_fc_power", 5.0)), step=0.5)
             # Efficiencies
             eff_ely = 0.70
             eff_fc = 0.50
-            h2_init_soc = st.slider("Initial SoC (%)", 0, 100, 50, key="h2_soc") / 100.0
+            h2_init_soc = st.slider("Initial SoC (%)", 0, 100, int(defaults.get("h2_init_soc", 50)), key="h2_soc") / 100.0
+            
+    # Save settings for next run
+    current_settings = {
+        "cap_solar": cap_solar, "cap_onshore": cap_onshore, "cap_offshore": cap_offshore,
+        "baseload_target": baseload_target,
+        "batt_cap": batt_cap, "batt_power": batt_power, "batt_init_soc": int(batt_init_soc*100),
+        "h2_cap": h2_cap, "h2_ely_power": h2_ely_power, "h2_fc_power": h2_fc_power, "h2_init_soc": int(h2_init_soc*100)
+    }
+    save_settings(current_settings)
 
     # ── Main Area: Filters & Simulation ────────────────────────────────
     
@@ -255,6 +306,92 @@ def main():
     
     st.divider()
     
+    # 0. Investment & Land Use (New Row)
+    if not df_costs.empty:
+        # Helper to get value
+        def get_cost_param(name, col):
+            try:
+                # Assuming index is the parameter name from costs.xlsx
+                return float(df_costs.loc[name, col])
+            except:
+                return 0.0
+
+        # Calculate Costs (Billion €)
+        # Power (GW) * 1e9 (W) * Cost (€/W) / 1e9 (B€) = GW * Cost
+        # Energy (GWh) * 1e9 (Wh) * Cost (€/Wh) / 1e9 (B€) = GWh * Cost
+        
+        cost_solar = cap_solar * 1e9 * get_cost_param("Solar Capacity", "Investment Cost")
+        cost_onshore = cap_onshore * 1e9 * get_cost_param("Wind Onshore Capacity", "Investment Cost")
+        cost_offshore = cap_offshore * 1e9 * get_cost_param("Wind Offshore Capacity", "Investment Cost")
+        cost_batt_cap = batt_cap * 1e9 * get_cost_param("Battery Capacity", "Investment Cost")
+        cost_batt_pow = batt_power * 1e9 * get_cost_param("Battery Power", "Investment Cost")
+        cost_h2_cap = h2_cap * 1e9 * get_cost_param("H2 Capacity", "Investment Cost")
+        cost_ely = h2_ely_power * 1e9 * get_cost_param("Electrolyzer Power", "Investment Cost")
+        cost_fc = h2_fc_power * 1e9 * get_cost_param("Fuel Cell Power", "Investment Cost")
+        
+        total_investment_eur = (cost_solar + cost_onshore + cost_offshore + 
+                                cost_batt_cap + cost_batt_pow + 
+                                cost_h2_cap + cost_ely + cost_fc)
+        total_investment_beur = total_investment_eur / 1e9
+        
+        # Calculate Land Use (km²)
+        # Power (GW) * 1e9 (W) * LandUse (m2/W) / 1e6 (km2) = GW * 1000 * LandUse
+        # Energy (GWh) * 1e9 (Wh) * LandUse (m2/Wh) / 1e6 (km2) = GWh * 1000 * LandUse
+        
+        area_solar = cap_solar * 1000 * get_cost_param("Solar Capacity", "Land use")
+        area_onshore = cap_onshore * 1000 * get_cost_param("Wind Onshore Capacity", "Land use")
+        area_offshore = cap_offshore * 1000 * get_cost_param("Wind Offshore Capacity", "Land use")
+        area_batt_cap = batt_cap * 1000 * get_cost_param("Battery Capacity", "Land use") # m2/Wh
+        area_batt_pow = batt_power * 1000 * get_cost_param("Battery Power", "Land use")
+        area_h2_cap = h2_cap * 1000 * get_cost_param("H2 Capacity", "Land use")
+        area_ely = h2_ely_power * 1000 * get_cost_param("Electrolyzer Power", "Land use")
+        area_fc = h2_fc_power * 1000 * get_cost_param("Fuel Cell Power", "Land use")
+        
+        total_area_km2 = (area_solar + area_onshore + area_offshore +
+                          area_batt_cap + area_batt_pow +
+                          area_h2_cap + area_ely + area_fc)
+        
+        m1, m2 = st.columns(2)
+        m1.metric("Total Investment", f"€ {total_investment_beur:.2f} B")
+        m2.metric("Land/Sea Use", f"{total_area_km2:.1f} km²")
+        
+        # Detailed Breakdown Table
+        with st.expander("Investment & Land Use Details", expanded=False):
+            cost_details = {
+                "Technology": [
+                    "Solar", "Wind Onshore", "Wind Offshore", 
+                    "Battery Capacity", "Battery Power", 
+                    "H2 Capacity", "Electrolyzer", "Fuel Cell"
+                ],
+                "Capacity/Power": [
+                    f"{cap_solar} GW", f"{cap_onshore} GW", f"{cap_offshore} GW", 
+                    f"{batt_cap} GWh", f"{batt_power} GW", 
+                    f"{h2_cap} GWh", f"{h2_ely_power} GW", f"{h2_fc_power} GW"
+                ],
+                "Investment (B€)": [
+                    cost_solar/1e9, cost_onshore/1e9, cost_offshore/1e9,
+                    cost_batt_cap/1e9, cost_batt_pow/1e9,
+                    cost_h2_cap/1e9, cost_ely/1e9, cost_fc/1e9
+                ],
+                "Land Use (km²)": [
+                    area_solar, area_onshore, area_offshore,
+                    area_batt_cap, area_batt_pow,
+                    area_h2_cap, area_ely, area_fc
+                ]
+            }
+            df_breakdown = pd.DataFrame(cost_details)
+            # Add a Total row
+            df_breakdown.loc[len(df_breakdown)] = [
+                "**Total**", "", total_investment_beur, total_area_km2
+            ]
+            st.dataframe(df_breakdown.style.format({
+                "Investment (B€)": "{:.3f}", 
+                "Land Use (km²)": "{:.3f}"
+            }), width="stretch")
+
+        
+        st.divider()
+
     # 1. KPI Metrics
     total_hours = len(df_sim)
     blackout_hours = np.count_nonzero(loss_load_arr > 1e-3)
@@ -328,7 +465,7 @@ def main():
         table_dict[str(year)] = year_vals
         
     df_table = pd.DataFrame(table_dict, index=table_index)
-    st.dataframe(df_table.style.format("{:.2f}"), use_container_width=True)
+    st.dataframe(df_table.style.format("{:.2f}"), width="stretch")
 
     # ── 2. Power Balance Graph ──
     st.divider()
@@ -400,7 +537,7 @@ def main():
         hovermode="x unified"
     )
     # Option 4: Download PNG is enabled by default in modebar
-    st.plotly_chart(fig_bal, use_container_width=True, config={'displayModeBar': True, 'toImageButtonOptions': {'filename': 'power_balance'}})
+    st.plotly_chart(fig_bal, width="stretch", config={'displayModeBar': True, 'toImageButtonOptions': {'filename': 'power_balance'}})
     
     # 3. Graph 2: Storage Levels
     # Linked time window is automatic because we filter df_sim based on start/end date inputs.
@@ -427,7 +564,7 @@ def main():
     fig_soc.update_yaxes(title_text="Battery SoC (%)", secondary_y=False, range=[0, 105])
     fig_soc.update_yaxes(title_text="H2 SoC (%)", secondary_y=True, range=[0, 105])
     
-    st.plotly_chart(fig_soc, use_container_width=True, config={'displayModeBar': True, 'toImageButtonOptions': {'filename': 'storage_levels'}})
+    st.plotly_chart(fig_soc, width="stretch", config={'displayModeBar': True, 'toImageButtonOptions': {'filename': 'storage_levels'}})
 
 if __name__ == "__main__":
     main()
